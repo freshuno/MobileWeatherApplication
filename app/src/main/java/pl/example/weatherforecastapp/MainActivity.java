@@ -57,6 +57,9 @@ import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import java.util.ArrayList;
 import java.util.Locale;
+import androidx.appcompat.app.AlertDialog;
+import android.content.DialogInterface;
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
     private static final int REQUEST_SPEECH = 100;
@@ -68,10 +71,65 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     Button button_searchView;
     ConstraintLayout weatherInfo,weatherInfoDetails;
     LocationManager locationManager;
-    private final String url = "http://api.openweathermap.org/geo/1.0/direct?";
+    private final String url = "https://api.openweathermap.org/geo/1.0/direct?";
     private final String appid = "6b19c6b85668b0aa881c3d9a392fcbf8";
     double lat, lon;
     DecimalFormat df = new DecimalFormat("#.##");
+    private Double currentLat = null;
+    private Double currentLon = null;
+
+    // mała klasa na dane miasta z geo API
+    class CityOption {
+        String name;
+        String country;
+        String state;   // np. województwo / region
+        double lat;
+        double lon;
+
+        CityOption(String name, String country, String state, double lat, double lon) {
+            this.name = name;
+            this.country = country;
+            this.state = state;
+            this.lat = lat;
+            this.lon = lon;
+        }
+
+        // podstawowa nazwa: Miasto, PL (Małopolskie)
+        String getDisplayName() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(name);
+            if (country != null && !country.isEmpty()) {
+                sb.append(", ").append(country);
+            }
+            if (state != null && !state.isEmpty()) {
+                sb.append(" (").append(state).append(")");
+            }
+            return sb.toString();
+        }
+
+        // PROSTA nazwa – do nagłówka na ekranie głównym
+        String getHeaderName() {
+            // jeśli chcesz tylko miasto:
+            // return name;
+
+            // jeśli wolisz "Miasto, PL":
+            //if (country != null && !country.isEmpty()) {
+            //    return name + ", " + country;
+            //}
+            return name;
+        }
+
+        // nazwa + opcjonalny dystans: "Krzyszkowice, PL (Małopolskie) – 12 km od Ciebie"
+        String getDisplayNameWithDistance(Double refLat, Double refLon) {
+            String base = getDisplayName();
+            if (refLat == null || refLon == null) {
+                return base;
+            }
+            double dist = distanceKm(refLat, refLon, lat, lon);
+            return base + String.format(Locale.getDefault(), " – %.0f km od Ciebie", dist);
+        }
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -254,31 +312,64 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             weatherInfo.setVisibility(View.INVISIBLE);
             weatherInfoDetails.setVisibility(View.INVISIBLE);
         } else {
-            tempUrl = url + "q=" + city + "&appid=" + appid;
+            tempUrl = url + "q=" + city + "&limit=5&appid=" + appid;
             StringRequest stringRequest = new StringRequest(Request.Method.GET, tempUrl, new Response.Listener<String>() {
                 @Override
                 public void onResponse(String response) {
                     Log.d("response", response);
                     try {
                         JSONArray jsonArray = new JSONArray(response);
-                        if (jsonArray.length() > 0) {
-                            JSONObject jsonObject = jsonArray.getJSONObject(0);
-                            lat = jsonObject.getDouble("lat");
-                            lon = jsonObject.getDouble("lon");
-                            String city = jsonObject.getString("name");
-                            weatherInfoCity.setText(city);
-                            System.out.println(lat);
-                            System.out.println(lon);
-                            getWeatherDetails(lat, lon);
-                        } else {
-                            // Wyświetlenie powiadomienia, gdy miasto nie zostało znalezione
+                        if (jsonArray.length() == 0) {
+                            // brak wyników
                             Toast.makeText(getApplicationContext(), "Miasto nie zostało znalezione", Toast.LENGTH_SHORT).show();
                             weatherInfo.setVisibility(View.INVISIBLE);
                             weatherInfoDetails.setVisibility(View.INVISIBLE);
+                            return;
                         }
+
+                        // zamieniamy wszystkie wyniki na listę CityOption
+                        ArrayList<CityOption> options = new ArrayList<>();
+                        final double MERGE_DISTANCE_KM = 10.0;  // próg "prawie to samo miejsce"
+
+                        for (int i = 0; i < jsonArray.length(); i++) {
+                            JSONObject obj = jsonArray.getJSONObject(i);
+                            double lat = obj.getDouble("lat");
+                            double lon = obj.getDouble("lon");
+                            String name = obj.getString("name");
+                            String country = obj.optString("country", "");
+                            String state = obj.optString("state", "");   // NOWE: region / województwo, jeśli jest
+
+                            // 1) sprawdź, czy nie ma już bardzo blisko podobnej lokalizacji
+                            boolean tooClose = false;
+                            for (CityOption existing : options) {
+                                double dist = distanceKm(existing.lat, existing.lon, lat, lon);
+                                if (dist < MERGE_DISTANCE_KM) {
+                                    tooClose = true;
+                                    break;
+                                }
+                            }
+
+                            if (!tooClose) {
+                                options.add(new CityOption(name, country, state, lat, lon));
+                            }
+                        }
+
+
+                        if (options.size() == 1) {
+                            // tylko jedno dopasowanie – działamy jak wcześniej
+                            CityOption only = options.get(0);
+                            weatherInfoCity.setText(only.getHeaderName());
+                            getWeatherDetails(only.lat, only.lon);
+                        } else {
+                            // kilka dopasowań – pokaż listę do wyboru
+                            showCityChoiceDialog(options);
+                        }
+
                     } catch (JSONException e) {
-                        throw new RuntimeException(e);
+                        e.printStackTrace();
+                        Toast.makeText(getApplicationContext(), "Problem z parsowaniem odpowiedzi", Toast.LENGTH_SHORT).show();
                     }
+
                 }
             }, new Response.ErrorListener() {
                 @Override
@@ -291,6 +382,42 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             requestQueue.add(stringRequest);
         }
     }
+
+    private void showCityChoiceDialog(ArrayList<CityOption> options) {
+        // przygotuj tablicę napisów do dialogu
+        String[] items = new String[options.size()];
+        for (int i = 0; i < options.size(); i++) {
+            items[i] = options.get(i).getDisplayNameWithDistance(currentLat, currentLon);
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        builder.setTitle("Wybierz miejscowość");
+        builder.setItems(items, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                CityOption chosen = options.get(which);
+                // ustaw nazwę w UI
+                weatherInfoCity.setText(chosen.getHeaderName());
+                // pobierz pogodę
+                getWeatherDetails(chosen.lat, chosen.lon);
+            }
+        });
+        builder.setNegativeButton("Anuluj", null);
+        builder.show();
+    }
+
+    private double distanceKm(double lat1, double lon1, double lat2, double lon2) {
+        final double R = 6371.0; // promień Ziemi w km
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+
     //Testing
     private void getWeatherDetails(double lat, double lon) {
         // Drugie żądanie sieciowe
@@ -590,21 +717,34 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                     try {
                         Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
                         List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
-                        String address = addresses.get(0).getAddressLine(0);
-                        double lat = addresses.get(0).getLatitude();
-                        double lon = addresses.get(0).getLongitude();
+                        Address addr = addresses.get(0);
+
+                        double lat = addr.getLatitude();
+                        double lon = addr.getLongitude();
+
+                        // pobierz pogodę dla tych współrzędnych
                         getWeatherDetails(lat, lon);
-                        String[] parts = address.split(","); // Dzielimy adres po przecinkach
-                        if (parts.length > 1) {
-                            String cityInfo = parts[1].trim(); // Wybieramy drugą część (indeks 1), usuwamy białe znaki
-                            String[] cityParts = cityInfo.split("\\s+"); // Dzielimy miasto na części po białych znakach
-                            if (cityParts.length > 1) {
-                                String city_loc = cityParts[1]; // Łączymy pierwsze dwie części
-                                weatherInfoCity.setText(city_loc);
-                            }
+
+                        // zapamiętaj aktualną lokalizację użytkownika
+                        currentLat = lat;
+                        currentLon = lon;
+
+                        // spróbuj wyciągnąć czytelną nazwę miasta
+                        String cityName = addr.getLocality();          // np. "Kraków"
+                        if (cityName == null || cityName.isEmpty()) {
+                            cityName = addr.getSubAdminArea();         // np. powiat / gmina – zapasowo
                         }
-                        System.out.println(address);
-                        progressDialog.dismiss(); // Zamknięcie ProgressDialog po załadowaniu danych
+                        if (cityName == null || cityName.isEmpty()) {
+                            // ostateczny zapas – bierzemy całą pierwszą linię adresu
+                            cityName = addr.getAddressLine(0);
+                        }
+
+                        // ustawienie nazwy w UI
+                        weatherInfoCity.setText(cityName);
+
+                        System.out.println(cityName);
+                        progressDialog.dismiss();
+
                     } catch (Exception e) {
                         e.printStackTrace();
                         progressDialog.dismiss(); // Zamknięcie ProgressDialog w przypadku błędu
