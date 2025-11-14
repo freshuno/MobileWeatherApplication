@@ -4,6 +4,7 @@ import static androidx.constraintlayout.motion.widget.Debug.getLocation;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -52,8 +53,14 @@ import org.json.JSONObject;
 import java.text.DecimalFormat;
 import java.util.List;
 import java.util.Locale;
+import android.speech.RecognizerIntent;
+import android.speech.tts.TextToSpeech;
+import java.util.ArrayList;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
+    private static final int REQUEST_SPEECH = 100;
+    private TextToSpeech tts;
     EditText textInputLayout;
     TextView textView,longTermWeather,weatherInfoCity,weatherInfoTemp, weatherInfoDescr, futureTempOne, futureTempTwo, futureTempThree, futureTempFour,
     futureHourOne, futureHourTwo, futureHourThree, futureHourFour,weatherInfoPressure,weatherInfoFeelsLike,weatherInfoHumidity,weatherInfoWindSpeed;
@@ -76,6 +83,24 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+        ImageView voiceButton = findViewById(R.id.voiceButton);
+        voiceButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startVoiceRecognition();
+            }
+        });
+
+// TTS – bez lambdy
+        tts = new TextToSpeech(MainActivity.this, new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if (status == TextToSpeech.SUCCESS) {
+                    tts.setLanguage(new Locale("pl", "PL"));
+                }
+            }
+        });
+
         textInputLayout = findViewById(R.id.editText1);
         textView = findViewById(R.id.textView);
         weatherInfoCity = findViewById(R.id.weatherInfoCity);
@@ -158,6 +183,67 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
 
     }
+    private void startVoiceRecognition() {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pl-PL");
+        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Słucham…");
+
+        try {
+            startActivityForResult(intent, REQUEST_SPEECH);
+        } catch (Exception e) {
+            Toast.makeText(this, "Brak wsparcia dla rozpoznawania mowy", Toast.LENGTH_SHORT).show();
+        }
+    }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_SPEECH && resultCode == RESULT_OK && data != null) {
+            ArrayList<String> result = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+            String voiceQuery = result.get(0).toLowerCase();
+
+            handleVoiceCommand(voiceQuery);
+        }
+    }
+
+    private void handleVoiceCommand(String query) {
+
+        // komenda: pogoda w Krakowie
+        if (query.contains("pogoda w")) {
+            String miasto = query.replace("pogoda w", "").trim();
+            EditText edt = findViewById(R.id.editText1);
+            edt.setText(miasto);
+            getWeather(null);
+            speak("Sprawdzam pogodę w " + miasto);
+            return;
+        }
+
+        // komenda: jaka będzie pogoda jutro?
+        if (query.contains("jutro")) {
+            speak("Prognoza na jutro pojawi się w przyszłej aktualizacji.");
+            return;
+        }
+
+        // komenda: wycieczka / rowerowa
+        if (query.contains("wycieczk") || query.contains("rower")) {
+            speak("Sprawdzam pogodę na Twoją wycieczkę.");
+            getWeather(null);
+            return;
+        }
+
+        // jeżeli użytkownik powiedział np. „Kraków”
+        EditText edt = findViewById(R.id.editText1);
+        edt.setText(query);
+        getWeather(null);
+        speak("Szukam informacji pogodowych dla " + query);
+    }
+    private void speak(String text) {
+        if (tts != null) {
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts1");
+        }
+    }
+
 
     public void getWeather(View view) {
         String tempUrl = "";
