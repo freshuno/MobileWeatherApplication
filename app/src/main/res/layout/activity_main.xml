@@ -22,6 +22,20 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+        <ImageView
+        android:id="@+id/voiceButton"
+        android:layout_width="45dp"
+        android:layout_height="45dp"
+        android:src="@android:drawable/ic_btn_speak_now"
+        android:background="@drawable/micro"
+        android:padding="8dp"
+        android:layout_marginStart="10dp"
+        android:contentDescription="Voice search"
+        app:layout_constraintTop_toTopOf="@+id/searchView2"
+        app:layout_constraintBottom_toBottomOf="@+id/searchView2"
+        app:layout_constraintStart_toEndOf="@+id/searchView2"/>
+
+    
     <Button
         android:id="@+id/searchView2"
         android:layout_width="wrap_content"
