@@ -60,6 +60,11 @@ import java.util.Locale;
 import androidx.appcompat.app.AlertDialog;
 import android.content.DialogInterface;
 import java.util.ArrayList;
+import com.google.mlkit.nl.entityextraction.Entity;
+import com.google.mlkit.nl.entityextraction.EntityAnnotation;
+import com.google.mlkit.nl.entityextraction.EntityExtractor;
+import com.google.mlkit.nl.entityextraction.EntityExtractorOptions;
+import com.google.mlkit.nl.entityextraction.EntityExtraction;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
     private static final int REQUEST_SPEECH = 100;
@@ -261,8 +266,53 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             ArrayList<String> result = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
             String voiceQuery = result.get(0).toLowerCase();
 
-            handleVoiceCommand(voiceQuery);
+            handleVoiceCommandWithNER(voiceQuery);
         }
+    }
+        private void handleVoiceCommandWithNER(String query) {
+        // Tworzymy ekstraktor dla języka polskiego
+        EntityExtractorOptions options =
+                new EntityExtractorOptions.Builder(EntityExtractorOptions.POLISH).build();
+        EntityExtractor extractor = EntityExtraction.getClient(options);
+
+        // Pobieramy model jeśli potrzeba
+        extractor.downloadModelIfNeeded()
+                .addOnSuccessListener(unused -> {
+                    extractor.annotate(query)
+                            .addOnSuccessListener(annotations -> {
+                                boolean foundCity = false;
+
+                                for (EntityAnnotation annotation : annotations) {
+                                    for (Entity entity : annotation.getEntities()) {
+                                        // Wykrywamy adres lub lokalizację
+                                        if (entity.getType() == Entity.TYPE_ADDRESS ||
+                                                entity.getType() == Entity.TYPE_DATE_TIME) {
+
+                                            String city = annotation.getAnnotatedText();
+                                            textInputLayout.setText(city);
+                                            getWeather(null);
+                                            speak("Sprawdzam pogodę w " + city);
+                                            foundCity = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (!foundCity) {
+                                    // Fallback — jeśli NER nic nie znalazł, używamy starych reguł
+                                    speak("Nie rozpoznano miasta. Spróbuję z prostą analizą.");
+                                    handleVoiceCommand(query);
+                                }
+                            })
+                            .addOnFailureListener(e -> {
+                                speak("Nie udało się przetworzyć wypowiedzi.");
+                                e.printStackTrace();
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    speak("Nie udało się pobrać modelu NER.");
+                    e.printStackTrace();
+                });
     }
 
     private void handleVoiceCommand(String query) {
