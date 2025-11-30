@@ -22,7 +22,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-        <ImageView
+    <ImageView
         android:id="@+id/voiceButton"
         android:layout_width="45dp"
         android:layout_height="45dp"
@@ -35,7 +35,6 @@
         app:layout_constraintBottom_toBottomOf="@+id/searchView2"
         app:layout_constraintStart_toEndOf="@+id/searchView2"/>
 
-    
     <Button
         android:id="@+id/searchView2"
         android:layout_width="wrap_content"
@@ -186,7 +185,6 @@
             android:layout_marginStart="8dp"
             android:layout_marginTop="236dp"
             app:layout_constraintEnd_toStartOf="@+id/futureImgFour"
-
             app:layout_constraintStart_toEndOf="@+id/futureImgTwo"
             app:layout_constraintTop_toTopOf="parent"
             app:srcCompat="@android:drawable/alert_dark_frame" />
@@ -232,7 +230,6 @@
             android:id="@+id/futureTempFour"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-
             android:layout_marginTop="188dp"
             android:layout_marginEnd="13dp"
             android:layout_marginBottom="16dp"
@@ -296,8 +293,8 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/weatherInfoDetails"
-        android:layout_width="372dp"
-        android:layout_height="164dp"
+        android:layout_width="375dp"
+        android:layout_height="168dp"
         android:layout_marginStart="20dp"
         android:layout_marginBottom="35dp"
         android:background="@drawable/border"
@@ -409,5 +406,20 @@
             app:layout_constraintEnd_toEndOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <Button
+        android:id="@+id/btnLongTermForecast"
+        android:layout_width="242dp"
+        android:layout_height="36dp"
+        android:layout_marginBottom="20dp"
+        android:backgroundTint="#FF1FDAAB"
+        android:text="Sprawdź na 16 dni"
+        android:textColor="#FFFFFF"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.497"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/weatherInfoDetails"
+        app:layout_constraintVertical_bias="1.0" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -71,13 +71,16 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private TextToSpeech tts;
     EditText textInputLayout;
     TextView textView,longTermWeather,weatherInfoCity,weatherInfoTemp, weatherInfoDescr, futureTempOne, futureTempTwo, futureTempThree, futureTempFour,
-    futureHourOne, futureHourTwo, futureHourThree, futureHourFour,weatherInfoPressure,weatherInfoFeelsLike,weatherInfoHumidity,weatherInfoWindSpeed;
+            futureHourOne, futureHourTwo, futureHourThree, futureHourFour,weatherInfoPressure,weatherInfoFeelsLike,weatherInfoHumidity,weatherInfoWindSpeed;
     ImageView futureImgOne, futureImgTwo, futureImgThree, futureImgFour, button_location;
-    Button button_searchView;
+    Button button_searchView, btnLongTermForecast;
     ConstraintLayout weatherInfo,weatherInfoDetails;
     LocationManager locationManager;
     private final String url = "https://api.openweathermap.org/geo/1.0/direct?";
-    private final String appid = "6b19c6b85668b0aa881c3d9a392fcbf8";
+
+    // TUTAJ ZAKTUALIZOWANO KLUCZ
+    private final String appid = BuildConfig.OPEN_WEATHER_API_KEY;
+
     double lat, lon;
     DecimalFormat df = new DecimalFormat("#.##");
     private Double currentLat = null;
@@ -114,13 +117,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         // PROSTA nazwa – do nagłówka na ekranie głównym
         String getHeaderName() {
-            // jeśli chcesz tylko miasto:
-            // return name;
-
-            // jeśli wolisz "Miasto, PL":
-            //if (country != null && !country.isEmpty()) {
-            //    return name + ", " + country;
-            //}
             return name;
         }
 
@@ -154,7 +150,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             }
         });
 
-// TTS – bez lambdy
+        // TTS – bez lambdy
         tts = new TextToSpeech(MainActivity.this, new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int status) {
@@ -191,9 +187,22 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         weatherInfoHumidity = findViewById(R.id.weatherInfoHumidity);
         weatherInfoWindSpeed = findViewById(R.id.weatherInfoWindSpeed);
 
+        // NOWY PRZYCISK
+        btnLongTermForecast = findViewById(R.id.btnLongTermForecast);
+        btnLongTermForecast.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MainActivity.this, LongTermWeatherActivity.class);
+                intent.putExtra("lat", lat);
+                intent.putExtra("lon", lon);
+                intent.putExtra("city", weatherInfoCity.getText().toString());
+                startActivity(intent);
+            }
+        });
+
         //Asking for location permission
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)!=
-        PackageManager.PERMISSION_GRANTED){
+                PackageManager.PERMISSION_GRANTED){
             ActivityCompat.requestPermissions(MainActivity.this,new String[]{
                     Manifest.permission.ACCESS_FINE_LOCATION
             },100);
@@ -201,22 +210,16 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         button_location.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Definicja animacji mrugania
                 ObjectAnimator animator = ObjectAnimator.ofFloat(button_location, "alpha", 1f, 0f, 1f);
-                animator.setDuration(500); // Czas trwania animacji w milisekundach
+                animator.setDuration(500);
 
-                // Ustawienie nasłuchiwacza zakończenia animacji
                 animator.addListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
                         super.onAnimationEnd(animation);
-                        // Tutaj możemy wywołać funkcję, która ma być wykonana po zakończeniu animacji
-                        // Na przykład, możemy tutaj umieścić kod związany z pobieraniem lokalizacji
                         getLocation();
                     }
                 });
-
-                // Rozpoczęcie animacji
                 animator.start();
             }
         });
@@ -224,28 +227,21 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         button_searchView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Definicja animacji mrugania
                 ObjectAnimator animator = ObjectAnimator.ofFloat(button_searchView, "alpha", 1f, 0f, 1f);
-                animator.setDuration(500); // Czas trwania animacji w milisekundach
+                animator.setDuration(500);
 
-                // Ustawienie nasłuchiwacza zakończenia animacji
                 animator.addListener(new AnimatorListenerAdapter() {
                     @Override
                     public void onAnimationEnd(Animator animation) {
                         super.onAnimationEnd(animation);
-                        // Tutaj możemy wywołać funkcję, która ma być wykonana po zakończeniu animacji
-                        // Na przykład, możemy tutaj umieścić kod związany z wyszukiwaniem
                         getWeather(v);
                     }
                 });
-
-                // Rozpoczęcie animacji
                 animator.start();
             }
         });
-
-
     }
+
     private void startVoiceRecognition() {
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
@@ -258,6 +254,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             Toast.makeText(this, "Brak wsparcia dla rozpoznawania mowy", Toast.LENGTH_SHORT).show();
         }
     }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -269,13 +266,12 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             handleVoiceCommandWithNER(voiceQuery);
         }
     }
-        private void handleVoiceCommandWithNER(String query) {
-        // Tworzymy ekstraktor dla języka polskiego
+
+    private void handleVoiceCommandWithNER(String query) {
         EntityExtractorOptions options =
                 new EntityExtractorOptions.Builder(EntityExtractorOptions.POLISH).build();
         EntityExtractor extractor = EntityExtraction.getClient(options);
 
-        // Pobieramy model jeśli potrzeba
         extractor.downloadModelIfNeeded()
                 .addOnSuccessListener(unused -> {
                     extractor.annotate(query)
@@ -284,7 +280,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
                                 for (EntityAnnotation annotation : annotations) {
                                     for (Entity entity : annotation.getEntities()) {
-                                        // Wykrywamy adres lub lokalizację
                                         if (entity.getType() == Entity.TYPE_ADDRESS ||
                                                 entity.getType() == Entity.TYPE_DATE_TIME) {
 
@@ -299,7 +294,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                                 }
 
                                 if (!foundCity) {
-                                    // Fallback — jeśli NER nic nie znalazł, używamy starych reguł
                                     speak("Nie rozpoznano miasta. Spróbuję z prostą analizą.");
                                     handleVoiceCommand(query);
                                 }
@@ -316,8 +310,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     private void handleVoiceCommand(String query) {
-
-        // komenda: pogoda w Krakowie
         if (query.contains("pogoda w")) {
             String miasto = query.replace("pogoda w", "").trim();
             EditText edt = findViewById(R.id.editText1);
@@ -326,41 +318,35 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             speak("Sprawdzam pogodę w " + miasto);
             return;
         }
-
-        // komenda: jaka będzie pogoda jutro?
         if (query.contains("jutro")) {
             speak("Prognoza na jutro pojawi się w przyszłej aktualizacji.");
             return;
         }
-
-        // komenda: wycieczka / rowerowa
         if (query.contains("wycieczk") || query.contains("rower")) {
             speak("Sprawdzam pogodę na Twoją wycieczkę.");
             getWeather(null);
             return;
         }
-
-        // jeżeli użytkownik powiedział np. „Kraków”
         EditText edt = findViewById(R.id.editText1);
         edt.setText(query);
         getWeather(null);
         speak("Szukam informacji pogodowych dla " + query);
     }
+
     private void speak(String text) {
         if (tts != null) {
             tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts1");
         }
     }
 
-
     public void getWeather(View view) {
         String tempUrl = "";
         String city = textInputLayout.getText().toString().trim();
         if (city.equals("")) {
-            // Wyświetlenie powiadomienia, gdy pole miasta jest puste
             Toast.makeText(getApplicationContext(), "Wpisz nazwę miasta", Toast.LENGTH_SHORT).show();
             weatherInfo.setVisibility(View.INVISIBLE);
             weatherInfoDetails.setVisibility(View.INVISIBLE);
+            btnLongTermForecast.setVisibility(View.INVISIBLE);
         } else {
             tempUrl = url + "q=" + city + "&limit=5&appid=" + appid;
             StringRequest stringRequest = new StringRequest(Request.Method.GET, tempUrl, new Response.Listener<String>() {
@@ -370,16 +356,15 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                     try {
                         JSONArray jsonArray = new JSONArray(response);
                         if (jsonArray.length() == 0) {
-                            // brak wyników
                             Toast.makeText(getApplicationContext(), "Miasto nie zostało znalezione", Toast.LENGTH_SHORT).show();
                             weatherInfo.setVisibility(View.INVISIBLE);
                             weatherInfoDetails.setVisibility(View.INVISIBLE);
+                            btnLongTermForecast.setVisibility(View.INVISIBLE);
                             return;
                         }
 
-                        // zamieniamy wszystkie wyniki na listę CityOption
                         ArrayList<CityOption> options = new ArrayList<>();
-                        final double MERGE_DISTANCE_KM = 10.0;  // próg "prawie to samo miejsce"
+                        final double MERGE_DISTANCE_KM = 10.0;
 
                         for (int i = 0; i < jsonArray.length(); i++) {
                             JSONObject obj = jsonArray.getJSONObject(i);
@@ -387,9 +372,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                             double lon = obj.getDouble("lon");
                             String name = obj.getString("name");
                             String country = obj.optString("country", "");
-                            String state = obj.optString("state", "");   // NOWE: region / województwo, jeśli jest
+                            String state = obj.optString("state", "");
 
-                            // 1) sprawdź, czy nie ma już bardzo blisko podobnej lokalizacji
                             boolean tooClose = false;
                             for (CityOption existing : options) {
                                 double dist = distanceKm(existing.lat, existing.lon, lat, lon);
@@ -404,14 +388,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                             }
                         }
 
-
                         if (options.size() == 1) {
-                            // tylko jedno dopasowanie – działamy jak wcześniej
                             CityOption only = options.get(0);
                             weatherInfoCity.setText(only.getHeaderName());
                             getWeatherDetails(only.lat, only.lon);
                         } else {
-                            // kilka dopasowań – pokaż listę do wyboru
                             showCityChoiceDialog(options);
                         }
 
@@ -424,7 +405,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             }, new Response.ErrorListener() {
                 @Override
                 public void onErrorResponse(VolleyError volleyError) {
-                    // Wyświetlenie powiadomienia w przypadku błędu żądania
                     Toast.makeText(getApplicationContext(), "Błąd podczas pobierania danych", Toast.LENGTH_SHORT).show();
                 }
             });
@@ -434,7 +414,6 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     private void showCityChoiceDialog(ArrayList<CityOption> options) {
-        // przygotuj tablicę napisów do dialogu
         String[] items = new String[options.size()];
         for (int i = 0; i < options.size(); i++) {
             items[i] = options.get(i).getDisplayNameWithDistance(currentLat, currentLon);
@@ -446,9 +425,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 CityOption chosen = options.get(which);
-                // ustaw nazwę w UI
                 weatherInfoCity.setText(chosen.getHeaderName());
-                // pobierz pogodę
                 getWeatherDetails(chosen.lat, chosen.lon);
             }
         });
@@ -457,7 +434,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     }
 
     private double distanceKm(double lat1, double lon1, double lat2, double lon2) {
-        final double R = 6371.0; // promień Ziemi w km
+        final double R = 6371.0;
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
@@ -467,10 +444,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         return R * c;
     }
 
-
-    //Testing
     private void getWeatherDetails(double lat, double lon) {
-        // Drugie żądanie sieciowe
+        // Aktualizacja zmiennych klasowych
+        this.lat = lat;
+        this.lon = lon;
+
         String tempUrlLoc = "https://api.openweathermap.org/data/2.5/weather?";
         tempUrlLoc += "lat=" + lat + "&lon=" + lon + "&appid=" + appid;
         System.out.println(tempUrlLoc);
@@ -505,7 +483,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                     textView.setText(output);
                     weatherInfo.setVisibility(View.VISIBLE);
                     weatherInfoDetails.setVisibility(View.VISIBLE);
-                    //weatherInfoCity.setText(city); //czasem tu dziwne nazwy daje
+                    // Pokaż przycisk długoterminowy
+                    btnLongTermForecast.setVisibility(View.VISIBLE);
+
                     weatherInfoTemp.setText(String.format("%.2f", temp) + "\u00B0");
                     weatherInfoDescr.setText(polishDescription);
                     weatherInfoPressure.setText(String.valueOf(pressure)+" hPa");
@@ -527,9 +507,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             }
         });
 
-        //LONG-TERM-WEATHER-FORECAST
-        //trzecie żądanie sieciowe long term weather forecast 5day/3hour
-        //Testowo wypluwana jest pierwsza prognoza za 3h ((5*24))/3= 40 obiektów)
+        // LONG-TERM-WEATHER-FORECAST (3-hour / 5 days)
         String longTermUrlLoc = "https://api.openweathermap.org/data/2.5/forecast?";
         longTermUrlLoc += "lat=" + lat + "&lon=" + lon + "&appid=" + appid;
         System.out.println(longTermUrlLoc);
@@ -546,74 +524,30 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                         JSONArray jsonArray2 = jsonObjectWeather.getJSONArray("weather");
                         JSONObject jsonObjectWeather2 = jsonArray2.getJSONObject(0);
                         String description = jsonObjectWeather2.getString("description");
-                        //Log.d("desc", description); jakby nie działało tłumaczenie albo ikonka to mozna sprawdzic
                         JSONObject jsonObjectMain = jsonObjectWeather.getJSONObject("main");
                         double temp = jsonObjectMain.getDouble("temp") - 273.15;
-                    /*double feelsLike = jsonObjectMain.getDouble("feels_like") - 273.15;
-                    float pressure = jsonObjectMain.getInt("pressure");
-                    int humidity = jsonObjectMain.getInt("humidity");
-                    JSONObject jsonObjectWind = jsonObjectWeather.getJSONObject("wind");
-                    float speedWind = jsonObjectWind.getInt("speed");
-                    JSONObject jsonObjectClouds = jsonObjectWeather.getJSONObject("clouds");
-                    int cloudy = jsonObjectClouds.getInt("all");*/
                         String dataTime = jsonObjectWeather.getString("dt_txt");
                         String hour = dataTime.substring(dataTime.indexOf(' ') + 1, dataTime.lastIndexOf(':'));
                         int imageResource;
                         switch (description) {
-                            case "overcast clouds":
-                                imageResource = R.drawable.clouds;
-                                break;
-                            case "light rain":
-                                imageResource = R.drawable.smallrain;
-                                break;
-                            case "moderate rain":
-                                imageResource = R.drawable.smallrain;
-                                break;
-                            case "rain":
-                                imageResource = R.drawable.smallrain;
-                                break;
-                            case "scattered clouds":
-                                imageResource = R.drawable.shatteredclouds;
-                                break;
-                            case "few clouds":
-                                imageResource = R.drawable.shatteredclouds;
-                                break;
-                            case "haze":
-                                imageResource = R.drawable.clouds;
-                                break;
-                            case "mist":
-                                imageResource = R.drawable.clouds;
-                                break;
-                            case "broken clouds":
-                                imageResource = R.drawable.shatteredclouds;
-                                break;
-                            case "light snow":
-                                imageResource = R.drawable.snow;
-                                break;
-                            case "snow":
-                                imageResource = R.drawable.snow;
-                                break;
-                            case "clear sky":
-                                imageResource = R.drawable.sun;
-                                break;
-                            case "sunrise":
-                                imageResource = R.drawable.sun;
-                                break;
-                            case "light intensity shower rain":
-                                imageResource = R.drawable.smallrain;
-                                break;
-                            case "very heavy rain":
-                                imageResource = R.drawable.heavyrain;
-                                break;
-                            case "heavy intensity rain":
-                                imageResource = R.drawable.heavyrain;
-                                break;
-                            case "thunderstorm":
-                                imageResource = R.drawable.thunderstorm;
-                                break;
-                            default:
-                                imageResource = R.drawable.unknown_weather; // Ustawienie domyślnego obrazka w przypadku braku dopasowania
-                                break;
+                            case "overcast clouds": imageResource = R.drawable.clouds; break;
+                            case "light rain": imageResource = R.drawable.smallrain; break;
+                            case "moderate rain": imageResource = R.drawable.smallrain; break;
+                            case "rain": imageResource = R.drawable.smallrain; break;
+                            case "scattered clouds": imageResource = R.drawable.shatteredclouds; break;
+                            case "few clouds": imageResource = R.drawable.shatteredclouds; break;
+                            case "haze": imageResource = R.drawable.clouds; break;
+                            case "mist": imageResource = R.drawable.clouds; break;
+                            case "broken clouds": imageResource = R.drawable.shatteredclouds; break;
+                            case "light snow": imageResource = R.drawable.snow; break;
+                            case "snow": imageResource = R.drawable.snow; break;
+                            case "clear sky": imageResource = R.drawable.sun; break;
+                            case "sunrise": imageResource = R.drawable.sun; break;
+                            case "light intensity shower rain": imageResource = R.drawable.smallrain; break;
+                            case "very heavy rain": imageResource = R.drawable.heavyrain; break;
+                            case "heavy intensity rain": imageResource = R.drawable.heavyrain; break;
+                            case "thunderstorm": imageResource = R.drawable.thunderstorm; break;
+                            default: imageResource = R.drawable.unknown_weather; break;
                         }
                         switch (i) {
                             case 1:
@@ -636,22 +570,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                                 futureHourFour.setText(hour);
                                 futureImgFour.setImageResource(imageResource);
                                 break;
-                            default:
-                                // Obsługa, gdy przekraczasz maksymalną liczbę przyszłych temperatur
-                                break;
                         }
-                        output += "DataTime= " + dataTime  //testowanie czy wyswietla mozna zakomentowac
-                                //+ "description=" + description + "\n"
-                                + " temperature=" + temp + "\n ";
-                            /*+ "feels like=" + feelsLike + "\n "
-                            + "Pressure=" + pressure + "\n"
-                            + "Humidity=" + humidity + "\n"
-                            + "Speed wind=" + speedWind + "\n"
-                            + "Cloudy=" + cloudy + "\n";*/
-                        //longTermWeather.setText(output);
-                    /*weatherInfo.setVisibility(View.VISIBLE);
-                    weatherInfoCity.setText(city);
-                    weatherInfoTemp.setText(String.format("%.2f", temp) + "\u00B0");*/
                     }
 
                 } catch (JSONException e) {
@@ -670,66 +589,32 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         RequestQueue requestQueue3 = Volley.newRequestQueue(getApplicationContext());
         requestQueue3.add(stringRequest3);
     }
-    //ToDo Dodanie description haze (mgła)
+
     private String translateWeatherDescription(String description) {
         String polishDescription;
         switch (description) {
-            case "overcast clouds":
-                polishDescription = "Zachmurzenie całkowite";
-                break;
-            case "light rain":
-                polishDescription = "Lekki deszcz";
-                break;
-            case "scattered clouds":
-                polishDescription = "Rozproszone chmury";
-                break;
-            case "light snow":
-                polishDescription = "Lekki śnieg";
-                break;
-            case "snow":
-                polishDescription = "Śnieg";
-                break;
-            case "sunrise":
-                polishDescription = "Wschód słońca";
-                break;
-            case "thunderstorm":
-                polishDescription = "Burza";
-                break;
-            case "few clouds":
-                polishDescription = "Pochmurno";
-                break;
-            case "broken clouds":
-                polishDescription = "Rozbite chmury";
-                break;
-            case "rain":
-                polishDescription = "Deszcz";
-                break;
-            case "clear sky":
-                polishDescription = "Czyste Niebo";
-                break;
-            case "light intensity shower rain":
-                polishDescription = "Lekki deszcz";
-                break;
-            case "moderate rain":
-                polishDescription = "Lekki deszcz";
-                break;
-            case "haze":
-                polishDescription = "Mgła";
-                break;
-            case "mist":
-                polishDescription = "Mgła";
-                break;
-            case "heavy intensity rain":
-                polishDescription = "Ulewa";
-                break;
-            case "very heavy rain":
-                polishDescription = "Ulewa";
-                break;
-            default:
-                polishDescription = "brak tłumaczenia";
+            case "overcast clouds": polishDescription = "Zachmurzenie całkowite"; break;
+            case "light rain": polishDescription = "Lekki deszcz"; break;
+            case "scattered clouds": polishDescription = "Rozproszone chmury"; break;
+            case "light snow": polishDescription = "Lekki śnieg"; break;
+            case "snow": polishDescription = "Śnieg"; break;
+            case "sunrise": polishDescription = "Wschód słońca"; break;
+            case "thunderstorm": polishDescription = "Burza"; break;
+            case "few clouds": polishDescription = "Pochmurno"; break;
+            case "broken clouds": polishDescription = "Rozbite chmury"; break;
+            case "rain": polishDescription = "Deszcz"; break;
+            case "clear sky": polishDescription = "Czyste Niebo"; break;
+            case "light intensity shower rain": polishDescription = "Lekki deszcz"; break;
+            case "moderate rain": polishDescription = "Lekki deszcz"; break;
+            case "haze": polishDescription = "Mgła"; break;
+            case "mist": polishDescription = "Mgła"; break;
+            case "heavy intensity rain": polishDescription = "Ulewa"; break;
+            case "very heavy rain": polishDescription = "Ulewa"; break;
+            default: polishDescription = "brak tłumaczenia";
         }
         return polishDescription;
     }
+
     private void hideKeyboard() {
         InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         View view = getCurrentFocus();
@@ -743,21 +628,18 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         try {
             Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
             List<Address> addresses = geocoder.getFromLocation(location.getLatitude(),location.getLongitude(),1);
-            String address = addresses.get(0).getAddressLine(0); //cały adress current location miejscowsci gdzies USA
+            String address = addresses.get(0).getAddressLine(0);
             lat = addresses.get(0).getLatitude();
             lon = addresses.get(0).getLongitude();
             longTermWeather.setText(address);
-
-            //getWeatherDetails(lat,lon);
-
         }catch (Exception e){
             e.printStackTrace();
         }
     }
+
     @SuppressLint("MissingPermission")
     public void getLocation() {
         try {
-            // Wyświetlenie ProgressDialog podczas ładowania danych
             ProgressDialog progressDialog = ProgressDialog.show(this, "Ładowanie danych", "Proszę czekać...", true);
 
             locationManager = (LocationManager) getApplicationContext().getSystemService(LOCATION_SERVICE);
@@ -772,32 +654,25 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                         double lat = addr.getLatitude();
                         double lon = addr.getLongitude();
 
-                        // pobierz pogodę dla tych współrzędnych
                         getWeatherDetails(lat, lon);
 
-                        // zapamiętaj aktualną lokalizację użytkownika
                         currentLat = lat;
                         currentLon = lon;
 
-                        // spróbuj wyciągnąć czytelną nazwę miasta
-                        String cityName = addr.getLocality();          // np. "Kraków"
+                        String cityName = addr.getLocality();
                         if (cityName == null || cityName.isEmpty()) {
-                            cityName = addr.getSubAdminArea();         // np. powiat / gmina – zapasowo
+                            cityName = addr.getSubAdminArea();
                         }
                         if (cityName == null || cityName.isEmpty()) {
-                            // ostateczny zapas – bierzemy całą pierwszą linię adresu
                             cityName = addr.getAddressLine(0);
                         }
 
-                        // ustawienie nazwy w UI
                         weatherInfoCity.setText(cityName);
-
-                        System.out.println(cityName);
                         progressDialog.dismiss();
 
                     } catch (Exception e) {
                         e.printStackTrace();
-                        progressDialog.dismiss(); // Zamknięcie ProgressDialog w przypadku błędu
+                        progressDialog.dismiss();
                     }
                 }
             });
@@ -805,5 +680,4 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             e.printStackTrace();
         }
     }
-
 }
