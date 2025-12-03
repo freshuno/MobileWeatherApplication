@@ -14,6 +14,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.LinearSmoothScroller;
 
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
@@ -179,6 +180,37 @@ public class LongTermWeatherActivity extends AppCompatActivity {
                             }
 
                             adapter.notifyDataSetChanged();
+
+                            // --- NOWY KOD DO PRZEWIJANIA ---
+                            int dayToScroll = getIntent().getIntExtra("scroll_to_day", 0);
+
+                            if (dayToScroll > 0 && dayToScroll < weatherList.size()) {
+                                // Przewijamy listę do konkretnej pozycji (dnia)
+                                // Używamy post(), żeby upewnić się, że lista się załadowała
+                                recyclerView.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        //recyclerView.scrollToPosition(dayToScroll);
+                                        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+                                        if (layoutManager != null) {
+                                            LinearSmoothScroller smoothScroller = new LinearSmoothScroller(LongTermWeatherActivity.this) {
+                                                @Override
+                                                public int calculateDtToFit(int viewStart, int viewEnd, int boxStart, int boxEnd, int snapPreference) {
+                                                    // Ta matematyka wylicza środek ekranu i środek elementu, a potem zwraca różnicę
+                                                    return (boxStart + (boxEnd - boxStart) / 2) - (viewStart + (viewEnd - viewStart) / 2);
+                                                }
+                                            };
+                                            smoothScroller.setTargetPosition(dayToScroll);
+                                            layoutManager.startSmoothScroll(smoothScroller);
+                                        }
+
+                                        // Opcjonalnie: podświetlenie lub komunikat
+                                        Toast.makeText(LongTermWeatherActivity.this,
+                                                "Prognoza na dzień: " + weatherList.get(dayToScroll).date,
+                                                Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                            }
 
                         } catch (JSONException e) {
                             e.printStackTrace();

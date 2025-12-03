@@ -65,6 +65,8 @@ import com.google.mlkit.nl.entityextraction.EntityAnnotation;
 import com.google.mlkit.nl.entityextraction.EntityExtractor;
 import com.google.mlkit.nl.entityextraction.EntityExtractorOptions;
 import com.google.mlkit.nl.entityextraction.EntityExtraction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
     private static final int REQUEST_SPEECH = 100;
@@ -85,6 +87,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     DecimalFormat df = new DecimalFormat("#.##");
     private Double currentLat = null;
     private Double currentLon = null;
+    private int targetDayOffset = 0; // 0 = dzisiaj, 1 = jutro, 5 = za 5 dni...
 
     // mała klasa na dane miasta z geo API
     class CityOption {
@@ -267,46 +270,113 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         }
     }
 
+    // Wklej to w MainActivity.java
+
     private void handleVoiceCommandWithNER(String query) {
+        String capitalizedQuery = capitalizeText(query);
+
+        // 1. Najpierw wyliczamy dzień z CAŁEGO zapytania (to naprawi problem "za 20 dni")
+        int days = parseDaysFromText(query);
+
+        if (days > 16) {
+            speak("Przykro mi, prognoza sięga tylko szesnastu dni.");
+            return; // <--- To przerywa działanie, nie otworzy się lista miast
+        }
+
+        // Zapisujemy to globalnie, żeby przetrwało wybieranie miasta z listy
+        targetDayOffset = days;
+
         EntityExtractorOptions options =
                 new EntityExtractorOptions.Builder(EntityExtractorOptions.POLISH).build();
         EntityExtractor extractor = EntityExtraction.getClient(options);
 
         extractor.downloadModelIfNeeded()
                 .addOnSuccessListener(unused -> {
-                    extractor.annotate(query)
+                    extractor.annotate(capitalizedQuery)
                             .addOnSuccessListener(annotations -> {
-                                boolean foundCity = false;
+                                String foundCity = null;
 
                                 for (EntityAnnotation annotation : annotations) {
                                     for (Entity entity : annotation.getEntities()) {
-                                        if (entity.getType() == Entity.TYPE_ADDRESS ||
-                                                entity.getType() == Entity.TYPE_DATE_TIME) {
-
-                                            String city = annotation.getAnnotatedText();
-                                            textInputLayout.setText(city);
-                                            getWeather(null);
-                                            speak("Sprawdzam pogodę w " + city);
-                                            foundCity = true;
+                                        if (entity.getType() == Entity.TYPE_ADDRESS) {
+                                            foundCity = annotation.getAnnotatedText();
                                             break;
                                         }
                                     }
                                 }
 
-                                if (!foundCity) {
-                                    speak("Nie rozpoznano miasta. Spróbuję z prostą analizą.");
-                                    handleVoiceCommand(query);
+                                if (foundCity != null) {
+                                    String normalizedCity = getNormalizedCityName(foundCity);
+                                    textInputLayout.setText(normalizedCity);
+
+                                    // Komunikat dla użytkownika
+                                    if (targetDayOffset > 0) {
+                                        speak("Szukam prognozy na dzień za " + targetDayOffset + " dni dla miasta " + normalizedCity);
+                                    } else {
+                                        speak("Sprawdzam pogodę dla: " + normalizedCity);
+                                    }
+
+                                    getWeather(null);
+                                } else {
+                                    runManualCleanup(query);
                                 }
                             })
-                            .addOnFailureListener(e -> {
-                                speak("Nie udało się przetworzyć wypowiedzi.");
-                                e.printStackTrace();
-                            });
+                            .addOnFailureListener(e -> runManualCleanup(query));
                 })
-                .addOnFailureListener(e -> {
-                    speak("Nie udało się pobrać modelu NER.");
-                    e.printStackTrace();
-                });
+                .addOnFailureListener(e -> runManualCleanup(query));
+    }
+
+    // Metoda pomocnicza do powiększania liter (dla modelu NER)
+    private String capitalizeText(String str) {
+        if (str == null || str.isEmpty()) return str;
+        String[] words = str.split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String w : words) {
+            if (!w.isEmpty()) {
+                sb.append(Character.toUpperCase(w.charAt(0)))
+                        .append(w.substring(1).toLowerCase())
+                        .append(" ");
+            }
+        }
+        return sb.toString().trim();
+    }
+
+    // Metoda pomocnicza do ręcznego czyszczenia (Fallback)
+    private void runManualCleanup(String query) {
+        String cleanQuery = query.toLowerCase().trim();
+        // Lista słów do wycięcia
+        String[] trashWords = {
+                "jaka", "będzie", "pogoda", "w", "we", "dla", "jutro",
+                "pojutrze", "teraz", "proszę", "sprawdź", "miasto", "mieście"
+        };
+
+        for (String word : trashWords) {
+            // Usuwamy całe słowa
+            cleanQuery = cleanQuery.replaceAll("\\b" + word + "\\b", "");
+        }
+
+        // Usuwamy zbędne spacje i kropki (czasami voice to text dodaje kropkę na końcu)
+        String rawCity = cleanQuery.replaceAll("[^a-zA-ZąęćłńóśźżĄĘĆŁŃÓŚŹŻ ]", "").trim().replaceAll("\\s+", " ");
+
+        if (!rawCity.isEmpty()) {
+            Log.d("NER_DEBUG", "Surowa nazwa z text-to-speech: " + rawCity);
+
+            // --- TU JEST MAGIA: NAPRAWIAMY NAZWĘ ---
+            // Wywołujemy naszą nową funkcję, która zamieni "krakowie" na "Kraków"
+            String normalizedCity = getNormalizedCityName(rawCity);
+            Log.d("NER_DEBUG", "Nazwa po normalizacji Geocoderem: " + normalizedCity);
+
+            // Ustawiamy w polu tekstowym ładną nazwę "Kraków"
+            textInputLayout.setText(normalizedCity);
+
+            // Pobieramy pogodę
+            getWeather(null);
+
+            // Aplikacja mówi teraz poprawnie
+            speak("Sprawdzam pogodę dla: " + normalizedCity);
+        } else {
+            speak("Nie zrozumiałem nazwy miasta.");
+        }
     }
 
     private void handleVoiceCommand(String query) {
@@ -485,6 +555,21 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                     weatherInfoDetails.setVisibility(View.VISIBLE);
                     // Pokaż przycisk długoterminowy
                     btnLongTermForecast.setVisibility(View.VISIBLE);
+
+                    // JEŚLI użytkownik pytał o przyszłość (np. za 5 dni)
+                    if (targetDayOffset > 0) {
+                        Intent intent = new Intent(MainActivity.this, LongTermWeatherActivity.class);
+                        intent.putExtra("lat", lat);
+                        intent.putExtra("lon", lon);
+                        intent.putExtra("city", weatherInfoCity.getText().toString());
+                        // PRZEKAZUJEMY DZIEŃ DO PRZEWINIĘCIA
+                        intent.putExtra("scroll_to_day", targetDayOffset);
+
+                        startActivity(intent);
+
+                        // Resetujemy, żeby kolejne ręczne kliknięcia działały normalnie
+                        targetDayOffset = 0;
+                    }
 
                     weatherInfoTemp.setText(String.format("%.2f", temp) + "\u00B0");
                     weatherInfoDescr.setText(polishDescription);
@@ -679,5 +764,60 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    // Metoda do zamiany "krakowie" -> "Kraków" przy użyciu Geocodera
+    private String getNormalizedCityName(String inputName) {
+        try {
+            Geocoder geocoder = new Geocoder(this, new Locale("pl", "PL"));
+            // Pytamy o 1 najlepszy wynik dla danej nazwy
+            List<Address> addresses = geocoder.getFromLocationName(inputName, 1);
+
+            if (addresses != null && !addresses.isEmpty()) {
+                Address address = addresses.get(0);
+                // Pobieramy oficjalną nazwę miasta (Locality)
+                String city = address.getLocality();
+                // Czasami miasto jest w subAdminArea (np. dla małych wsi), więc zabezpieczenie:
+                if (city == null) city = address.getSubAdminArea();
+                if (city == null) city = address.getFeatureName();
+
+                if (city != null) return city;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        // Jak się nie uda naprawić, zwracamy oryginał (np. "krakowie")
+        return inputName;
+    }
+
+    private int parseDaysFromText(String text) {
+        if (text == null) return 0;
+        String t = text.toLowerCase().trim();
+
+        if (t.contains("jutro")) return 1;
+        if (t.contains("pojutrze")) return 2;
+        if (t.contains("tydzień")) return 7;
+
+        // Szukamy konkretnych liczb, np. "za 5 dni", "za 20 dni"
+        Pattern p = Pattern.compile("za (\\d+) dni");
+        Matcher m = p.matcher(t);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
+
+        // Fallback: szukamy samej liczby jeśli powyższe nie zadziała
+        p = Pattern.compile("(\\d+)");
+        m = p.matcher(t);
+        if (m.find()) {
+            try {
+                return Integer.parseInt(m.group(1));
+            } catch (NumberFormatException e) { return 0; }
+        }
+
+        return 0;
     }
 }
