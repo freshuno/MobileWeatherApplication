@@ -10,43 +10,44 @@
 
     <EditText
         android:id="@+id/editText1"
-        android:layout_width="300dp"
+        android:layout_width="0dp"
         android:layout_height="60dp"
         android:layout_marginTop="28dp"
-        android:layout_marginEnd="52dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
         android:ems="10"
         android:hint="Wpisz nazwę miejscowości"
         android:inputType="text"
         android:textAlignment="center"
         android:visibility="visible"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <ImageView
         android:id="@+id/voiceButton"
         android:layout_width="45dp"
         android:layout_height="45dp"
-        android:src="@android:drawable/ic_btn_speak_now"
-        android:background="@drawable/micro"
+        android:src="@drawable/micro"
         android:padding="8dp"
-        android:layout_marginStart="10dp"
+        android:layout_marginStart="8dp"
         android:contentDescription="Voice search"
+        app:layout_constraintStart_toEndOf="@+id/searchView2"
+        app:layout_constraintEnd_toStartOf="@+id/currentLocation"
         app:layout_constraintTop_toTopOf="@+id/searchView2"
-        app:layout_constraintBottom_toBottomOf="@+id/searchView2"
-        app:layout_constraintStart_toEndOf="@+id/searchView2"/>
+        app:layout_constraintBottom_toBottomOf="@+id/searchView2"/>
 
     <Button
         android:id="@+id/searchView2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="161dp"
         android:layout_marginTop="16dp"
-        android:layout_marginEnd="160dp"
         android:backgroundTint="#FF1FDAAB"
         android:onClick="getWeather"
         android:text="Szukaj"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_chainStyle="packed"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/voiceButton"
         app:layout_constraintTop_toBottomOf="@+id/editText1" />
 
     <TextView
@@ -283,13 +284,14 @@
 
     <ImageView
         android:id="@+id/currentLocation"
-        android:layout_width="76dp"
-        android:layout_height="75dp"
-        android:layout_marginStart="64dp"
-        android:layout_marginBottom="12dp"
-        app:layout_constraintBottom_toTopOf="@+id/weatherInfo"
-        app:layout_constraintStart_toEndOf="@+id/searchView2"
-        app:srcCompat="@drawable/localization" />
+        android:layout_width="45dp"
+        android:layout_height="45dp"
+        android:layout_marginStart="8dp"
+        app:srcCompat="@drawable/localization"
+        app:layout_constraintStart_toEndOf="@+id/voiceButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/searchView2"
+        app:layout_constraintBottom_toBottomOf="@+id/searchView2"/>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/weatherInfoDetails"

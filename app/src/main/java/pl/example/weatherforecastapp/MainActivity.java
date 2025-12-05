@@ -725,44 +725,77 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     @SuppressLint("MissingPermission")
     public void getLocation() {
         try {
-            ProgressDialog progressDialog = ProgressDialog.show(this, "Ładowanie danych", "Proszę czekać...", true);
+            // Tworzymy dialog ręcznie, żeby mieć kontrolę
+            ProgressDialog progressDialog = new ProgressDialog(this);
+            progressDialog.setTitle("Ładowanie danych");
+            progressDialog.setMessage("Szukam Twojej lokalizacji (GPS)...");
+            progressDialog.setIndeterminate(true);
+            progressDialog.setCancelable(true); // Pozwalamy anulować przyciskiem wstecz lub kliknięciem poza
+            progressDialog.show();
 
             locationManager = (LocationManager) getApplicationContext().getSystemService(LOCATION_SERVICE);
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 5, new LocationListener() {
+
+            // Definiujemy listenera jako zmienną, żeby móc go usunąć przy anulowaniu
+            LocationListener locationListener = new LocationListener() {
                 @Override
                 public void onLocationChanged(@NonNull Location location) {
+                    // Jeśli udało się znaleźć lokalizację:
+                    progressDialog.dismiss(); // Zamykamy dialog
+                    locationManager.removeUpdates(this); // Przestajemy nasłuchiwać GPS (ważne dla baterii!)
+
                     try {
                         Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
                         List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
-                        Address addr = addresses.get(0);
 
-                        double lat = addr.getLatitude();
-                        double lon = addr.getLongitude();
+                        if (addresses != null && !addresses.isEmpty()) {
+                            Address addr = addresses.get(0);
+                            double lat = addr.getLatitude();
+                            double lon = addr.getLongitude();
 
-                        getWeatherDetails(lat, lon);
+                            // Aktualizujemy zmienne globalne
+                            currentLat = lat;
+                            currentLon = lon;
 
-                        currentLat = lat;
-                        currentLon = lon;
+                            getWeatherDetails(lat, lon);
 
-                        String cityName = addr.getLocality();
-                        if (cityName == null || cityName.isEmpty()) {
-                            cityName = addr.getSubAdminArea();
+                            String cityName = addr.getLocality();
+                            if (cityName == null) cityName = addr.getSubAdminArea();
+                            if (cityName == null) cityName = addr.getAddressLine(0);
+
+                            weatherInfoCity.setText(cityName);
                         }
-                        if (cityName == null || cityName.isEmpty()) {
-                            cityName = addr.getAddressLine(0);
-                        }
-
-                        weatherInfoCity.setText(cityName);
-                        progressDialog.dismiss();
-
                     } catch (Exception e) {
                         e.printStackTrace();
-                        progressDialog.dismiss();
+                        Toast.makeText(MainActivity.this, "Błąd geokodowania", Toast.LENGTH_SHORT).show();
                     }
                 }
+
+                // Wymagane metody interfejsu (puste)
+                @Override public void onStatusChanged(String provider, int status, Bundle extras) {}
+                @Override public void onProviderEnabled(@NonNull String provider) {}
+                @Override public void onProviderDisabled(@NonNull String provider) {}
+            };
+
+            // Obsługa ANULOWANIA przez użytkownika (np. przycisk wstecz)
+            progressDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
+                @Override
+                public void onCancel(DialogInterface dialog) {
+                    // Kluczowe: przestajemy szukać GPS, żeby ikona z paska zniknęła
+                    if (locationManager != null) {
+                        locationManager.removeUpdates(locationListener);
+                    }
+                    Toast.makeText(MainActivity.this, "Anulowano szukanie lokalizacji", Toast.LENGTH_SHORT).show();
+                }
             });
+
+            // Startujemy nasłuchiwanie
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 5, locationListener);
+            // Dodatkowo Network Provider (szybszy, mniej dokładny) jako fallback
+            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 5000, 5, locationListener);
+
         } catch (Exception e) {
             e.printStackTrace();
+            Toast.makeText(this, "Błąd inicjalizacji lokalizacji", Toast.LENGTH_SHORT).show();
         }
     }
 
